@@ -3,6 +3,10 @@ An early boot initram Linux operating system.
 Loads straight into /init file without going through an init system.
 Bootstrapped with alpine-latest-stable.
 
+![pandora-gif](https://github.com/user-attachments/assets/a4beccea-5d83-45ca-85f3-6f8e23a3ed1e)
+
+
+
 As an initram is usually being used as an emergency console in other distributions,
 Pandora aims to be a fully fledged environment. Most of the boot media is allocated
 for kernel modules for broad hardware support. 

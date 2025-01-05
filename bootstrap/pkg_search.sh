@@ -1,12 +1,17 @@
 #!/bin/sh
 source ./build_env.sh
-mkdir -p $TMP_PKG_BUILD
-if [[ -z "$1" ]]; then
+if [[ -z "$1" || -z "$2" ]]; then
 	exit 1
 fi
-if [ ! -f $TMP_PKG_BUILD/APKINDEX ]; then
-	URL="https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/x86_64"
-	wget $URL/APKINDEX.tar.gz -O $TMP_PKG_BUILD/APKINDEX.tar.gz
-	tar xvzf $TMP_PKG_BUILD/APKINDEX.tar.gz -C $TMP_PKG_BUILD/
+PKGNAME="$1"
+SUITE="$2"
+mkdir -p $TMP_PKG_BUILD/$SUITE
+if [ ! -f $TMP_PKG_BUILD/$SUITE/APKINDEX ]; then
+	URL="$(./pkg_url.sh $SUITE)"
+	wget $URL/APKINDEX.tar.gz -O $TMP_PKG_BUILD/APKINDEX_$SUITE.tar.gz --quiet > /dev/null
+	tar xvzf $TMP_PKG_BUILD/APKINDEX_$SUITE.tar.gz -C $TMP_PKG_BUILD/$SUITE/ > /dev/null
+	if [ $? -ne 0 ]; then
+		exit 1
+	fi
 fi
-echo $(cat $TMP_PKG_BUILD/APKINDEX | grep -m 1 -A 1 "P:$1" | sed 's/P://' | sed 's/V://' | tr '\n' '-' | sed 's/.$//').apk
+echo $(cat $TMP_PKG_BUILD/$SUITE/APKINDEX | grep -m 1 -A 1 "P:$1" | sed 's/P://' | sed 's/V://' | tr '\n' '-' | sed 's/.$//').apk

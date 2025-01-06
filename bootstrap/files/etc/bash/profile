@@ -1,5 +1,0 @@
-if [ "$(id -u)" -eq 0 ]; then
-        PS1='\u@\H:\w# '
-else
-        PS1='\u@\H:\w$ '
-fi

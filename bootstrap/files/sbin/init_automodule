@@ -1,0 +1,2 @@
+#!/bin/sh
+find /lib/modules -name  \*.ko.gz -exec bash -c "modprobe $(basename {} | cut -d '.' -f1)" \;

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/busybox sh
 /bin/busybox hostname $(/bin/busybox cat /etc/hostname)
 export PATH="$PATH:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -23,13 +23,15 @@ mount -t devtmpfs -o exec,nosuid,mode=0755,size=2M devtmpfs /dev 2>/dev/null \
 mkdir /dev/pts
 mount -t devpts pts /dev/pts
 chmod 1777 /tmp
-
+setcap 'cap_sys_tty_config+ep' /bin/fbterm_real
 
 modprobe usbcore e1000
 
 if [ -f /sys/devices/platform/QEMUVGID:00/modalias ];then
         echo "Running inside QEMU. Loading modules"
         find /lib/modules/ -type f -name  \*virtio\* -exec bash -c 'modprobe $(basename {} | cut -d'.' -f1)' \;
+	modprobe bochs
+	chmod 777 /dev/fb0
 fi
 
 
@@ -38,7 +40,6 @@ ifconfig eth0 up
 udhcpc -i eth0 &
 
 init_automount
-
 while true;do
-        /sbin/getty 38400 tty1
+        /sbin/agetty tty1
 done

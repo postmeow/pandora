@@ -21,6 +21,7 @@ for dev in $(ls /sys/class/block/); do
                         if [ -f /mnt/$dev/pandora/init ]; then
                                 /mnt/$dev/pandora/init 2> /dev/null &
                         fi
+			export PATH=/mnt/$dev/pandora/bin:/mnt/$dev/pandora/sbin:/mnt/$dev/pandora/usr/local/bin:$PATH
                 fi
         fi
 done

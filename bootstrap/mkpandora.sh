@@ -13,11 +13,13 @@ while IFS= read -r pkgline; do
 	./pkg_install.sh $pkgname $pkgsuite $TMP_INITBUILD
 done <<< $(cat files/apk_bootstrap)
 rm $TMP_INITBUILD/.??*
+chmod 4755 $TMP_INITBUILD/bin/su
 
-cp $TMP_PKG_BUILD/apkworld $TMP_INITBUILD/etc/APKWORLD
-cp -R files/etc $TMP_INITBUILD
-cp -R files/sbin $TMP_INITBUILD
-
+cp $TMP_PKG_BUILD/apkworld $TMP_INITBUILD/etc/apk/world
+cp -R files/etc/* $TMP_INITBUILD/etc/
+cp -R files/sbin/* $TMP_INITBUILD/sbin/
+cp -R files/usr/* $TMP_INITBUILD/usr/
+cp -R files/bin/* $TMP_INITBUILD/bin/
 echo """
 #!/bin/busybox sh
 /sbin/init

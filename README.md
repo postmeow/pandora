@@ -1,55 +1,64 @@
-
-An early boot initram Linux operating system.
-Loads straight into /init file without going through an init system.
+A Linux distribution.
 Bootstrapped with alpine-latest-stable.
 
-![pandora-gif](https://github.com/user-attachments/assets/a4beccea-5d83-45ca-85f3-6f8e23a3ed1e)
+Boot ASAP in readonly RAM. 
+Claim given resources such as optional local or remote storage. 
+Spawn containers or virtual machine in RAM or persistent storage.
+Aims to be zero config with simplicity in mind.
 
+dev branch. commit progress here.
 
+./mktest/init
 
-As an initram is usually being used as an emergency console in other distributions,
-Pandora aims to be a fully fledged environment. Most of the boot media is allocated
-for kernel modules for broad hardware support. 
+main script. launches qemu instance with serial console and generates fresh pandora iso with mkiso.
 
-The initramfs is decompressed into RAM to tmpfs with a selection of packages.
+./mkiso/init 
 
-Additional packages can be added to the bootstrap script that makes pandora.
+creates pandora iso and echos path to iso. prepares initram with mkinitram and rootfile system with mkrootfs.
+a minimal kernel is copied that will only boot with qemu scsi, virtio and bochs-drm framebuffer support.
+ 
+./mkrootfs/init $rootfsFilename
 
-User configuration, home directories or packages are mounted from persistent storage when available. 
-The root filesystem however remains tmpfs and files are mounted on top. 
+create rootfs sparse filesystem named rootfsFilename.
+uses mkapkchroot to populate filesystem with a set of apk packages. 
+includes apk (alpine linux package manager), debootstrap for creating Debian like chroots, qemu for launching virtual machines
+and the dora userspace management script for interfacing with pandora.
 
-Optional storage is scanned and mounted to `/mnt/$DEV` and utilized if `pandora/.pandora-loader` is found.
-```
-/mnt/vda # mounted from /dev/vda
-└── pandora
-    ├── .pandora-loader # empty trigger file for pandora detection
-    ├── etc
-    │   └── ssh # is mounted to /etc/ssh when found or any other etc dir
-    │       ├── moduli
-    │       ├── ssh_config
-    │       ├── ssh_config.d
-    │       ├── ssh_host_key
-    │       └── sshd_config
-    ├── home 
-    │   └── meow # is mounted to /home/meow when found or any other home dir
-    │       └── project
-    │           └── README.md
-    ├── init # executable file run on boot based on shebang when found
-    └── swap # swapfile enabled on boot when found
-```
-There are no daemons running from the initial init and should started manually or from
-the persistent storage init file.
+./mkinitram $initramName
 
-Pandora aims to be feature rich without complex abstractions seen in modern Linux for simplicty and performance.
-It comes with no warranty and is an experimental testbed for a different approach.
+create minimal initram for early boot and echos path to archive. its important to keep the initram small as boot time increases by nature.
+uses mkapkchroot to populate the file system with an init that switches root made by mkrootfs.
 
-The bootstrap consists of a few files that retrieves alpine packages, pandora specifics and creates the ISO
+./mkapkchroot/init $chrootname "$apkPackage1 $apkPackage2"
 
-```
-.
-├── README.md
-└── bootstrap
-    ├── mkpandora.sh # main script. outputs cd.iso
-    ├── pkg_install.sh # ./pkg_install.sh pkgname dest/ retrieves apk package from alpine latest and extracts to dest
-    └── pkg_search.sh # ./pkg_search.sh pkgname searches for apk package by name frmo alpine latest and returns name
-```
+creates a chrootable or swap root directory named $chrootname and installs given APK packages into chroot.
+
+The boot process:
+
+syslinux launches a stripped qemu kernel with scsi and virtio support with a minimal initram.
+the initram has a /sbin/init shell script that mounts the rootfs on the iso.
+the root is switched to the rootfs in readonly mode as its a sparse filesystem on the iso. the /proc, /dev are mounted with tmpfs and populated kernel mounts.
+If existing local storage is encountered and detected as previously used pandora storage will be setup as used before.
+If empty local storage is encountered it will be claimed.
+Networking DHCP is started with sshd and a framebuffer, nothing else. At this point less than 30 Mb of RAM is claimed and ready for operation.
+
+the dora tool supplied in the rootfs can be used for the actual operations after boot.
+
+dora is the system management script in userspace for post boot operations. 
+
+it should manage daemons such as sshd.
+it should create chroots for various distributions.
+it should link shared directories between chroots.
+it should manage virtual machines supplied with chroots or existing distributions.
+it should report common connectivity problems and hardware compatibility.
+it should manage recurring scripts known as cronjobs.
+it should manage logging known as syslog.
+
+Goals:
+
+- Do one thing and do it well.
+- Keep it simple stupid.
+- Near zero configuration.
+- Long existence by low maintenance.
+- Modern and legacy interfaces.
+

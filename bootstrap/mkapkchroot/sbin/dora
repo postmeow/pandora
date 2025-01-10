@@ -1,0 +1,270 @@
+#!/bin/bash
+#set -o errexi
+dora_dir=/tmp/dora/
+dora_pid=$$
+stderr() { 
+	msg="$@"
+	echo $msg 1>&2
+	write_log stderr "$msg"
+}
+stdout() {
+        msg="$@"
+        echo $msg
+	write_log stdout "$msg"
+}
+write_log() {
+	loglevel=$1
+	if [[ $2 == "-" ]]; then
+		while IFS= read -r stdin
+		do
+			write_log $loglevel "$stdin"			
+		done < /proc/$dora_pid/fd/0
+	else
+		msg="$(date) $2"
+		echo $msg >> $dora_dir/logs/dora.log
+	fi
+}
+
+get_age_file_seconds() {
+	filet="$1"
+	fileage=$(stat -c %Y $filet 2> /dev/null)
+	if [ $? -ne 0 ]; then
+		echo 999999999
+	else
+		echo $(date +%s) - $fileage | bc
+	fi
+}
+
+write_keyvalue_db() {
+	varkey="$1"
+	value="$2"
+	echo $value > $dora_dir/keyvalues/$varkey
+	echo $value
+}
+
+get_keyvalue_db() {
+	varkey="$1"
+	value="$(cat $dora_dir/keyvalues/$varkey)"
+	echo $value
+}
+
+get_keyvalue() {
+	filet="$dora_dir/keyvalues/$1"
+	maxage="$2"
+	if [ -z $maxage ]; then
+		maxage=300
+	fi
+	if [ $(get_age_file_seconds $filet) -gt $maxage ]; then
+		write_keyvalue_db $1 $($1)
+	else
+		get_keyvalue_db $1
+	fi
+}
+
+cron_loop() {
+	cron_minute_file="$dora_dir/keyvalues/cron_minute"
+	cron_hourly_file="$dora_dir/keyvalues/cron_hourly"
+	while true;do
+		if [ -f $cron_minute_file ]; then
+			if [ $(get_age_file_seconds $cron_minute_file) -gt 60 ]; then
+				$cron_minute_file
+				touch $cron_minute_file
+			fi
+		fi
+
+                if [ -f $cron_hourly_file ]; then
+                        if [ $(get_age_file_seconds $cron_hourly_file) -gt 3600 ]; then
+                                $cron_hourly_file
+                                touch $cron_hourly_file
+                        fi
+                fi
+		sleep 60
+	done
+}
+cron_edit() {
+	if [[ $1 != "minute" || $1 != "hourly" ]]; then
+		stderr 'either minute or hourly not: ' $1
+		exit 1
+	fi
+	targetf=$dora_dir/keyvalues/"cron_"$1
+	if [ -z $EDITOR ]; then
+		EDITOR=nano
+	fi
+	$EDITOR $targetf
+}
+
+populate_connectivity() {
+	write_keyvalue ping_check $(ping_check)
+	write_keyvalue dns_check $(dns_check)
+	echo done
+}
+
+
+print_local_network() {
+	iface=eth0
+	echo -e $iface: $(ip addr show dev $iface | grep 'inet ' | cut -d' ' -f8 | tr -d [:blank:])
+	echo -e router: $(ip route | grep default | cut -d' ' -f3 | tr -d [:blank:] )
+}
+
+prep_env() {
+	mkdir -p $dora_dir
+	mkdir -p $dora_dir/logs
+	mkdir -p $dora_dir/pids
+	mkdir -p $dora_dir/keyvalues
+}
+
+show_dora_log() {
+	tail -n 3 $dora_dir/logs/dora.log
+}
+
+start_daemon() {
+	pid_dir=$dora_dir/pids
+	daemon=$1
+	daemon_name="$(basename $daemon)"
+
+	if [ -z $daemon ]; then
+		stderr "start what?"
+		exit 1
+	fi
+	
+	if [ -f $dora_dir/pids/$daemon_name ]; then
+		ex_pid=$(cat $dora_dir/pids/$daemon_name)
+		if [ -d /proc/$ex_pid ]; then
+			# add check for process name
+			stderr $daemon_name already running with pid $ex_pid
+			exit 1
+		fi
+	fi
+	daemon_start_wrap() {
+		daemon=$1
+		{ $daemon 2>&1; } | dora writelog $daemon_name -
+	} 
+	daemon_start_wrap $daemon &
+	daemon_pid=$!
+	sleep 1
+	if [ ! -d /proc/$daemon_pid ]; then
+		stderr Unable to start $daemon
+		show_dora_log
+	else
+		disown %%$daemon_name
+		echo $daemon_pid > $pid_dir/$daemon_name
+		stdout $daemon_name started with pid $daemon_pid
+		show_dora_log
+	fi
+}
+stop_daemon() {
+	daemon="$1"
+	daemon_name=$(basename $daemon)
+	pidf="$dora_dir/pids/$daemon"
+	if [ -z $daemon ]; then
+		stderr "stop what?"
+		exit 1
+	fi
+	if [ -f $pidf ]; then
+		pida=$(cat $pidf)
+		if [ ! -d /proc/$pida ]; then
+			stderr $daemon not running
+			exit 1
+		fi
+		# add process name check
+		kill $pida
+		stdout Sending SIGTERM to $daemon_name with $pida
+		for x in {1..5};do
+			if [ ! -d /proc/$pida ]; then
+				break
+			else
+				stdout $pida still running...
+				sleep 2
+			fi
+		done
+		if [ $x -eq 5 ]; then
+			kill -9 $pida
+			stdout $pida killed due to timeout
+		else
+                	if [ ! -d /proc/$pida ]; then
+                        	stdout daemon $daemon_name stopped
+			fi
+		fi
+		rm $pidf
+	else
+		stderr $daemon_name not running
+		exit 1
+	fi
+}
+
+bool_display() {
+	if [ $1 -eq 1 ]; then
+		echo -n "NO"
+	fi
+	if [ $1 -eq 0 ]; then
+		echo -n "YES"
+	fi
+}
+
+ping_check() {
+	ping -c 1 -w 1 1.1.1.1 2> /dev/null > /dev/null
+	bool_display $?
+}
+
+dns_check() {
+	ping -c 1 -w 1 one.one.one.one 2> /dev/null > /dev/null
+	bool_display $?
+}
+virt_check() {
+	have=0
+	cat /proc/cpuinfo | grep vmx > /dev/ull
+	if [ $? -eq 0 ]; then
+		have=1
+	fi
+	cat /proc/cpuinfo | grep smx > /dev/null
+	if [ $? -eq 0 ]; then
+		have=1
+	fi
+	bool_display $have	
+}
+get_cpu_threads() {
+	echo -n $(cat /proc/cpuinfo  | grep processor | wc -l)
+}
+kb_to_gb() {
+	echo "$($1 / 1024 / 1024 | bc -l)"
+}
+mem_info() {
+	total="$(cat /proc/meminfo | grep MemTotal | tr -d '[:alpha:][:blank:][:punct:]\n')"
+	echo -n $total / 1024 / 1024 | bc -l
+}
+
+status() {
+	echo Kernel $(uname -r)
+	echo -n "CPU Threads: "
+	get_cpu_threads
+	echo
+	echo "Memory: "
+	mem_info
+	echo -n "Virtualisation: "
+	virt_check
+	echo
+	echo Network:
+	print_local_network
+	echo -n "PING working: "
+	ping_check 1.1.1.1
+	echo
+	echo -n "DNS working: "
+	dns_check
+}
+
+have_fn() {
+	declare -F "$1" > /dev/null
+}
+
+show_help() {
+	echo "nah"
+	exit 1
+}
+
+args_to_func() {
+	have_fn $1 || show_help
+	$1 $2 $3 $3 $4 $5
+}
+
+prep_env
+args_to_func $1 $2 $3 $4 $5

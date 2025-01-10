@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e errexit
+
+umount mktest/tmpfs 2> /dev/null || true
+mkdir -p mktest/tmpfs
+#mount -t tmpfs tmpfs -o size=500M mktest/tmpfs
+iso=$(./mkiso/init $1)
+#cp $iso mktest/tmpfs
+qemu-system-x86_64 -m 2048 -smp cores=2 -nographic -enable-kvm -cdrom $iso

@@ -1,0 +1,23 @@
+#!/bin/sh
+set -o errexit
+umount mkrootfs/build 2> /dev/null || true
+rm -r mkrootfs/build/ mkrootfs/rootfs.img 2> /dev/null || true
+chrootdir="$(./mkapkchroot/init rootfs 'zsh qemu-system-x86_64 debootstrap apk-tools wget ca-certificates-bundle nano bridge-utils agetty openssh-server openssh-client openssh-keygen chrony')"
+if [ -z "$chrootdir" ]; then
+	echo empty chrootdir
+	exit 2
+fi
+mkdir mkrootfs/build/
+dd if=/dev/null of=mkrootfs/rootfs.img count=300 bs=1M seek=300 2> /dev/null
+mkfs.ext4 mkrootfs/rootfs.img 2> /dev/null  > /dev/null 
+mount -t ext4 mkrootfs/rootfs.img mkrootfs/build
+cp -r $chrootdir/* mkrootfs/build/
+ssh-keygen -f mkrootfs/build/etc/ssh/ssh_host_key -N "" > /dev/null
+
+mkdir -p /var/run/chrony
+
+sync
+umount mkrootfs/build
+
+echo $PWD/mkrootfs/rootfs.img
+

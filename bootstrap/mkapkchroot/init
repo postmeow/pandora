@@ -1,0 +1,28 @@
+#!/bin/sh
+set -o errexit
+chrootdir="$1"
+pkgs="$2"
+if [ -z "$chrootdir" ]; then
+	exit 1
+fi
+chrootdir="mkapkchroot/build/$chrootdir"
+chroothostname="pandora-$test-apkchroot"
+
+rm -rf $chrootdir 2> /dev/null
+mkdir -p $chrootdir $chrootdir/sbin
+
+cp -r mkapkchroot/etc/ $chrootdir
+
+apk --initdb --root=$chrootdir add > /dev/null
+apk --root=$chrootdir add busybox $2 > /dev/null
+rm $chrootdir/sbin/init
+cp -R mkapkchroot/sbin/* $chrootdir/sbin/
+
+mkdir -p $chrootdir/dev $chrootdir/proc $chrootdir/sys $chrootdir/tmp
+
+echo $chroothostname > $chrootdir/etc/hostname
+echo "127.0.0.1 $chroothostname localhost" > $chrootdir/etc/hosts
+echo "nameserver 1.1.1.1" >  $chrootdir/etc/resolv.conf
+echo "nameserver 8.8.4.4" >> $chrootdir/etc/resolv.conf
+
+echo $PWD/$chrootdir

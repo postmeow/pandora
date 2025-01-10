@@ -1,0 +1,19 @@
+#!/bin/sh
+set -o errexit
+rm -r mkinitram/build/ mkinitram/initram.gz 2> /dev/null || true
+chrootdir="$(./mkapkchroot/init initramfs)"
+if [ -z "$chrootdir" ]; then
+	echo empty chrootdir
+	exit 2
+fi
+echo """#!/bin/sh
+exec /sbin/init
+""" > $chrootdir/init
+chmod +x $chrootdir/init
+cd $chrootdir
+find . | cpio -H newc -o -R root:root | gzip -9 > ../../../mkinitram/initram.gz
+cd ../../../
+
+
+echo $PWD/mkinitram/initram.gz
+

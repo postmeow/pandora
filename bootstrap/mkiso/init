@@ -1,0 +1,29 @@
+#!/bin/sh
+set -o errexit
+rm -r mkiso/build || true
+mkdir -p mkiso/build/boot/syslinux
+initramfs=$(./mkinitram/init)
+syslinux_chroot=$(./mkapkchroot/init syslinux syslinux)
+cp $syslinux_chroot/usr/share/syslinux/isohdpfx.bin mkiso/build/boot/syslinux
+cp $syslinux_chroot/usr/share/syslinux/isolinux.bin mkiso/build/boot/syslinux
+cp $syslinux_chroot/usr/share/syslinux/ldlinux.c32 mkiso/build/boot/syslinux
+cp $syslinux_chroot/usr/share/syslinux/libcom32.c32 mkiso/build/boot/syslinux
+cp $syslinux_chroot/usr/share/syslinux/libutil.c32 mkiso/build/boot/syslinux
+cp $syslinux_chroot/usr/share/syslinux/mboot.c32 mkiso/build/boot/syslinux
+cp -r mkiso/boot/* mkiso/build/boot/
+#sed -i "s/quiet/quiet $1/g" mkiso/build/boot/syslinux/syslinux.cfg
+cp $initramfs mkiso/build/boot/initram
+
+rootfs=$(./mkrootfs/init)
+cp $rootfs mkiso/build/rootfs.img
+
+xorriso -as mkisofs \
+   -r -J --joliet-long \
+   -o mkiso/cd.iso \
+   -partition_offset 16 \
+   -c boot/syslinux/boot.cat \
+   -b boot/syslinux/isolinux.bin \
+   -no-emul-boot -boot-load-size 4 -boot-info-table \
+   mkiso/build 2> /dev/null
+
+echo $PWD/mkiso/cd.iso

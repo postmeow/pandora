@@ -2,6 +2,7 @@
 #set -o errexi
 dora_dir=/tmp/dora/
 dora_pid=$$
+
 stderr() { 
 	msg="$@"
 	echo $msg 1>&2
@@ -24,6 +25,13 @@ write_log() {
 		echo $msg >> $dora_dir/logs/dora.log
 	fi
 }
+
+rotate_log() {
+	log=$1
+	maxlogsize=30000
+	truncate --size="<$maxlogsize" $dora_dir_logs/$1
+}
+
 
 get_age_file_seconds() {
 	filet="$1"
@@ -61,8 +69,13 @@ get_keyvalue() {
 	fi
 }
 
+local_5min_cron() {
+	rotate_log dora
+}
+
 cron_loop() {
 	cron_minute_file="$dora_dir/keyvalues/cron_minute"
+	cron_5minute_file="$dora_dir/keyvalues/cron_5minute"
 	cron_hourly_file="$dora_dir/keyvalues/cron_hourly"
 	while true;do
 		if [ -f $cron_minute_file ]; then
@@ -71,6 +84,18 @@ cron_loop() {
 				touch $cron_minute_file
 			fi
 		fi
+
+               if [ -f $cron_5minute_file ]; then
+                        if [ $(get_age_file_seconds $cron_5minute_file) -gt 300 ]; then
+                                $cron_5minute_file
+				local_5min_cron
+                                touch $cron_5minute_file
+                        fi
+		else
+			# always exist for local operations
+			touch $cron_5minute_file
+			chmod +x $cron_5minute_file
+                fi
 
                 if [ -f $cron_hourly_file ]; then
                         if [ $(get_age_file_seconds $cron_hourly_file) -gt 3600 ]; then
@@ -82,8 +107,8 @@ cron_loop() {
 	done
 }
 cron_edit() {
-	if [[ $1 != "minute" || $1 != "hourly" ]]; then
-		stderr 'either minute or hourly not: ' $1
+	if [[ $1 != "minute" || $1 != "hourly" || $1 != "5minute" ]]; then
+		stderr 'either minute, 5minute or hourly not: ' $1
 		exit 1
 	fi
 	targetf=$dora_dir/keyvalues/"cron_"$1
@@ -119,7 +144,7 @@ show_dora_log() {
 
 start_daemon() {
 	pid_dir=$dora_dir/pids
-	daemon=$1
+	daemon="$1"
 	daemon_name="$(basename $daemon)"
 
 	if [ -z $daemon ]; then
@@ -136,8 +161,12 @@ start_daemon() {
 		fi
 	fi
 	daemon_start_wrap() {
-		daemon=$1
-		{ $daemon 2>&1; } | dora writelog $daemon_name -
+		daemon="$1"
+		while true;do 
+			dora write_log $daemon Started $daemon_name
+			{ $daemon 2>&1; } | dora write_log $daemon_name -
+			sleep 5
+		done
 	} 
 	daemon_start_wrap $daemon &
 	daemon_pid=$!
@@ -257,14 +286,18 @@ have_fn() {
 }
 
 show_help() {
-	echo "nah"
+	echo "no idea what to do with: " $@
 	exit 1
 }
 
+daemon() {
+	cron_loop &
+}
+
 args_to_func() {
-	have_fn $1 || show_help
+	have_fn "$1" || show_help
 	$1 $2 $3 $3 $4 $5
 }
 
 prep_env
-args_to_func $1 $2 $3 $4 $5
+args_to_func $1 "$2 "$3 "$4 "$5

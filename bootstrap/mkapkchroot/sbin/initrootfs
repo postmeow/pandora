@@ -2,4 +2,5 @@
 set -o errexit
 ifconfig eth0 up
 udhcpc -i eth0 2> /dev/null > /dev/null &
+dorad &
 exec getty 0 tty0

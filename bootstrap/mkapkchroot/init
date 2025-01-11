@@ -25,4 +25,7 @@ echo "127.0.0.1 $chroothostname localhost" > $chrootdir/etc/hosts
 echo "nameserver 1.1.1.1" >  $chrootdir/etc/resolv.conf
 echo "nameserver 8.8.4.4" >> $chrootdir/etc/resolv.conf
 
+mkdir $chrootdir/root
+mkdir $chrootdir/home
+
 echo $PWD/$chrootdir

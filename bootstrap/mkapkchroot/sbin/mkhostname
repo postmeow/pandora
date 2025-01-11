@@ -1,0 +1,1 @@
+grep -Eow '\w{5,}' /usr/share/fortune/fortunes | shuf | head -n 2 | tr -d "[:space:][:punct:]" | tr "[:upper:]" "[:lower:]"

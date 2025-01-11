@@ -21,10 +21,12 @@ write_log() {
 			write_log $loglevel "$stdin"			
 		done < /proc/$dora_pid/fd/0
 	else
-		msg="$(date) $2"
+		msg="$(date): $2"
 		echo $msg >> $dora_dir/logs/dora.log
+		
 	fi
 }
+
 
 rotate_log() {
 	log=$1
@@ -32,7 +34,47 @@ rotate_log() {
 	truncate --size="<$maxlogsize" $dora_dir_logs/$1
 }
 
+claim() {
+	claim_block vda
+	mount_block vda 1
+}
 
+mount_block() {
+	block=$1
+	check_pandora=$2
+
+	mkdir -p $dora_dir/mnt/$block
+	mount /dev/$block $dora_dir/mnt/$block
+	if [ $? -ne 0 ]; then
+		stderr "not able to mount $block aborting"
+		exit 1
+	fi
+	if [ $check_pandora -eq 1 ]; then
+		if [ ! -f $dora_dir/mnt/$block/.pandora ]; then
+			umount $dora_dir/mnt/$block
+			stderr "unmounted $block not detected as pandora"
+		else
+			stdout "mounted $block to $dora_dir/mnt/$block"
+		fi
+	fi
+}
+
+claim_block() {
+	blockdev="$1"
+	if [ ! -e /dev/$blockdev ]; then
+		stderror block /dev/$blockdev doesnt exist
+		exit 1
+	fi
+	first=$(dd if=/dev/$blockdev bs=1K count=8 2> /dev/null)
+	if [ -z "$first" ]; then
+		mkfs.ext4 /dev/$blockdev 2> /dev/null > /dev/null
+		mount_block $blockdev 0
+		touch $dora_dir/mnt/$block/.pandora
+		echo "Claimed /dev/$blockdev"
+	else
+		stderr block /dev/$blockdev doesnt look empty. not claiming
+	fi
+}
 get_age_file_seconds() {
 	filet="$1"
 	fileage=$(stat -c %Y $filet 2> /dev/null)
@@ -136,6 +178,7 @@ prep_env() {
 	mkdir -p $dora_dir/logs
 	mkdir -p $dora_dir/pids
 	mkdir -p $dora_dir/keyvalues
+	mkdir -p $dora_dir/mnt
 }
 
 show_dora_log() {

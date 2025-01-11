@@ -2,7 +2,7 @@
 set -o errexit
 umount mkrootfs/build 2> /dev/null || true
 rm -r mkrootfs/build/ mkrootfs/rootfs.img 2> /dev/null || true
-chrootdir="$(./mkapkchroot/init rootfs 'zsh qemu-system-x86_64 debootstrap apk-tools wget ca-certificates-bundle nano bridge-utils agetty openssh-server openssh-client openssh-keygen chrony')"
+chrootdir="$(./mkapkchroot/init rootfs 'zsh qemu-system-x86_64 qemu-img debootstrap apk-tools wget ca-certificates-bundle nano bridge-utils agetty openssh-server openssh-client openssh-keygen chrony bash fortune e2fsprogs')"
 if [ -z "$chrootdir" ]; then
 	echo empty chrootdir
 	exit 2

@@ -2,5 +2,9 @@
 set -o errexit
 ifconfig eth0 up
 udhcpc -i eth0 2> /dev/null > /dev/null &
-dorad &
-exec getty 0 tty0
+/bin/busybox hostname $(/sbin/mkhostname)
+/sbin/dora start_daemon dorad > /dev/null &
+/sbin/dora claim
+mount -t tmpfs tmpfs -o size=100M /root
+mount -t tmpfs tmpfs -o size=100M /home
+exec getty 0 ttyS0

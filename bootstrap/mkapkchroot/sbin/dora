@@ -1,6 +1,6 @@
 #!/bin/bash
 #set -o errexi
-dora_dir=/tmp/dora/
+dora_dir=/tmp/dora
 dora_pid=$$
 
 stderr() { 
@@ -34,47 +34,130 @@ rotate_log() {
 	truncate --size="<$maxlogsize" $dora_dir_logs/$1
 }
 
+bind_chroot_stuff() {
+	chrootdir=$1
+        mount --bind /proc $chrootdir/proc
+        mount --bind /dev $chrootdir/dev
+        mount --bind /sys $chrootdir/sys
+}
+
+xchroot() {
+	chroot "$1" "tigervnc icewm xterm font-dejavu font-dejavu-sans-mono-nerd qemu-ui-gtk qemu-system-x86_64"
+}
+
+chroot() {
+	chrootname="$1"
+	stdout "chrooting into $chrootname ..."
+	pkgs="zsh apk-tools $2"
+
+	currentcwd=$PWD
+
+	storage="$(get_primary_storage)"
+	if [ -z "$storage" ]; then
+		stderr "got no primary storage"
+		exit
+	fi
+	if [ -d $storage/chroots/$chrootname ]; then
+		bind_chroot_stuff $storage/chroots/$chrootname/
+		/usr/sbin/chroot $storage/chroots/$chrootname sbin/initchroot
+		exit 0
+	fi
+
+	stdout "building new $chrootname"
+
+	bootstrap="$storage/bootstrap"
+	mkdir -p $bootstrap
+	cp -rv /usr/pandora/* "$bootstrap"
+
+	cd $bootstrap
+
+	chrootdir=$(./mkapkchroot/init $chrootname "$pkgs")
+	if [ -z "$chrootdir" ]; then
+		stderr failed to mkapkchroot $chrootdir
+	else
+		bind_chroot_stuff $chrootdir
+
+#		cp -R /etc/* $chrootdir/etc/
+		echo $(mkhostname) > $chrootdir/etc/hostname 
+
+		mkdir -p $storage/chroots/
+
+		echo $chrootdir $storage/chroots/$chrootname
+		ln -s $chrootdir $storage/chroots/$chrootname
+
+		cd $currentpwd
+		stdout "finished building $name"
+
+		chroot $chrootname
+	fi
+}
+
+
 claim() {
 	claim_block vda
 	mount_block vda 1
+
+	storage="$(get_primary_storage)"
+
+	if [ $storage == "$dora_dir/tmp" ]; then
+		mem_total_kb=$(mem_info)
+		mem_25p=$(echo $mem_total_kb / 100 \* 25 | bc)
+		mount -t tmpfs tmpfs -o size="$mem_25p"K $dora_dir/tmp
+		write_keyvalue_db primary_storage "$dora_dir/tmp/" > /dev/null
+		stdout "Claimed $mem_25p KB of RAM for $dora_dir/tmp"
+	fi
+}
+
+get_primary_storage() {
+	storage_dir="$(get_keyvalue_db primary_storage)"
+	if [ -z "$storage_dir" ]; then
+		storage_dir="$dora_dir/tmp"
+	fi
+	echo $storage_dir
 }
 
 mount_block() {
 	block=$1
 	check_pandora=$2
-
 	mkdir -p $dora_dir/mnt/$block
-	mount /dev/$block $dora_dir/mnt/$block
-	if [ $? -ne 0 ]; then
+	if [ ! -e /dev/$block ]; then
 		stderr "not able to mount $block aborting"
-		exit 1
-	fi
-	if [ $check_pandora -eq 1 ]; then
-		if [ ! -f $dora_dir/mnt/$block/.pandora ]; then
-			umount $dora_dir/mnt/$block
-			stderr "unmounted $block not detected as pandora"
-		else
-			stdout "mounted $block to $dora_dir/mnt/$block"
+	else
+		mount /dev/$block $dora_dir/mnt/$block 2> /dev/null
+		if [ $check_pandora -eq 1 ]; then
+			if [ ! -f $dora_dir/mnt/$block/.pandora ]; then
+				umount $dora_dir/mnt/$block
+				stderr "unmounted $block not detected as pandora"
+			else
+				stdout "mounted $block to $dora_dir/mnt/$block"
+				mkdir -p $dora_dir/mnt/$block/pandora
+			fi
 		fi
+	fi
+	if [ -f $dora_dir/mnt/$block/.pandora ]; then
+		write_keyvalue_db primary_storage "$dora_dir/mnt/$block/pandora" > /dev/null
 	fi
 }
 
 claim_block() {
 	blockdev="$1"
 	if [ ! -e /dev/$blockdev ]; then
-		stderror block /dev/$blockdev doesnt exist
-		exit 1
-	fi
-	first=$(dd if=/dev/$blockdev bs=1K count=8 2> /dev/null)
-	if [ -z "$first" ]; then
-		mkfs.ext4 /dev/$blockdev 2> /dev/null > /dev/null
-		mount_block $blockdev 0
-		touch $dora_dir/mnt/$block/.pandora
-		echo "Claimed /dev/$blockdev"
+		stderr block /dev/$blockdev doesnt exist
 	else
-		stderr block /dev/$blockdev doesnt look empty. not claiming
+		first=$(dd if=/dev/$blockdev bs=1K count=8 2> /dev/null)
+		if [ -z "$first" ]; then # mkfix: throws warning about null byte
+			mkfs.ext4 /dev/$blockdev 2> /dev/null > /dev/null
+			mount_block $blockdev 0
+			touch $dora_dir/mnt/$block/.pandora
+			umount $dora_dir/mnt/$block
+			echo "Claimed /dev/$blockdev"
+		else
+			stderr block /dev/$blockdev doesnt look empty. not claiming
+		fi
 	fi
 }
+
+
 get_age_file_seconds() {
 	filet="$1"
 	fileage=$(stat -c %Y $filet 2> /dev/null)
@@ -179,6 +262,7 @@ prep_env() {
 	mkdir -p $dora_dir/pids
 	mkdir -p $dora_dir/keyvalues
 	mkdir -p $dora_dir/mnt
+	mkdir -p $dora_dir/tmp
 }
 
 show_dora_log() {
@@ -302,7 +386,8 @@ kb_to_gb() {
 }
 mem_info() {
 	total="$(cat /proc/meminfo | grep MemTotal | tr -d '[:alpha:][:blank:][:punct:]\n')"
-	echo -n $total / 1024 / 1024 | bc -l
+	echo $total
+#	echo -n $total / 1024 / 1024 | bc -l
 }
 
 status() {

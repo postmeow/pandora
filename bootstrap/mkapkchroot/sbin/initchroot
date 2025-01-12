@@ -1,0 +1,4 @@
+#!/bin/zsh
+busybox hostname $(cat /etc/hostname)
+echo "Entering chroot " $(hostname)
+zsh /sbin/postchroot

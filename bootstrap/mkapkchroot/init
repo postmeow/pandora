@@ -24,6 +24,9 @@ echo $chroothostname > $chrootdir/etc/hostname
 echo "127.0.0.1 $chroothostname localhost" > $chrootdir/etc/hosts
 echo "nameserver 1.1.1.1" >  $chrootdir/etc/resolv.conf
 echo "nameserver 8.8.4.4" >> $chrootdir/etc/resolv.conf
+if [ -f $chrootdir/etc/apk/world ]; then
+	echo $pkgs > $chrootdir/etc/apk/world
+fi
 
 mkdir $chrootdir/root
 mkdir $chrootdir/home

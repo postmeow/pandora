@@ -9,4 +9,5 @@ iso=$(./mkiso/init $1)
 if [ ! -f mktest/disk.img ]; then
 	qemu-img create -f raw mktest/disk.img 10G
 fi
-qemu-system-x86_64 -m 2048 -boot d -smp cores=2 -nographic -enable-kvm -cdrom $iso -cpu host -object 'iothread,id=iothread-virtio0' -device 'virtio-blk-pci,drive=drive-virtio0,id=virtio0,bus=pci.0,addr=0xa,iothread=iothread-virtio0' -drive 'file=mktest/disk.img,if=none,id=drive-virtio0,format=raw,cache=none,aio=io_uring,detect-zeroes=on'
+qemu-system-x86_64 -m 2048 -boot d -smp cores=2 -nographic -enable-kvm -cdrom $iso -cpu host 
+#-object 'iothread,id=iothread-virtio0' -device 'virtio-blk-pci,drive=drive-virtio0,id=virtio0,bus=pci.0,addr=0xa,iothread=iothread-virtio0' -drive 'file=mktest/disk.img,if=none,id=drive-virtio0,format=raw,cache=none,aio=io_uring,detect-zeroes=on' -nic user,hostfwd=tcp:0.0.0.0:5900-:5900

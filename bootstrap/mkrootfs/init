@@ -12,6 +12,12 @@ dd if=/dev/null of=mkrootfs/rootfs.img count=300 bs=1M seek=300 2> /dev/null
 mkfs.ext4 mkrootfs/rootfs.img 2> /dev/null  > /dev/null 
 mount -t ext4 mkrootfs/rootfs.img mkrootfs/build
 cp -r $chrootdir/* mkrootfs/build/
+
+mkdir -p mkrootfs/build/usr/pandora/mkapkchroot
+cp -r ../bootstrap/mkapkchroot/init  mkrootfs/build/usr/pandora/mkapkchroot
+cp -r ../bootstrap/mkapkchroot/etc mkrootfs/build/usr/pandora/mkapkchroot
+cp -r ../bootstrap/mkapkchroot/sbin mkrootfs/build/usr/pandora/mkapkchroot
+
 ssh-keygen -f mkrootfs/build/etc/ssh/ssh_host_key -N "" > /dev/null
 
 mkdir -p /var/run/chrony

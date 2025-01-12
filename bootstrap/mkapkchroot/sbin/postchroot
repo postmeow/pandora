@@ -1,0 +1,10 @@
+#!/bin/zsh
+export DISPLAY=:0
+hash Xvnc 2> /dev/null
+if [ $? -eq 0 ]; then
+	Xvnc SecurityTypes=None 2> /dev/null > /dev/null  &
+	sleep 3
+	icewm 2> /dev/null > /dev/null &
+fi
+
+zsh

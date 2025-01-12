@@ -8,6 +8,12 @@ Aims to be zero config with simplicity in mind.
 
 dev branch. commit progress here.
 
+bootstrap
+
+required apks
+
+apk-tools e2fsprogs openssh-keygen xorriso
+
 ./mktest/init
 
 main script. launches qemu instance with serial console and generates fresh pandora iso with mkiso.

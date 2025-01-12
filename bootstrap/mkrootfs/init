@@ -9,8 +9,9 @@ if [ -z "$chrootdir" ]; then
 fi
 mkdir mkrootfs/build/
 dd if=/dev/null of=mkrootfs/rootfs.img count=300 bs=1M seek=300 2> /dev/null
-mkfs.ext4 mkrootfs/rootfs.img 2> /dev/null  > /dev/null 
-mount -t ext4 mkrootfs/rootfs.img mkrootfs/build
+mkfs.ext4 mkrootfs/rootfs.img 2> /dev/null > /dev/null
+losetup /dev/loop7 mkrootfs/rootfs.img
+mount -t ext4 /dev/loop7 mkrootfs/build
 cp -r $chrootdir/* mkrootfs/build/
 
 mkdir -p mkrootfs/build/usr/pandora/mkapkchroot
@@ -24,6 +25,6 @@ mkdir -p /var/run/chrony
 
 sync
 umount mkrootfs/build
-
+losetup -d /dev/loop7
 echo $PWD/mkrootfs/rootfs.img
 

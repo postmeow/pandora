@@ -6,19 +6,22 @@ if [ -z "$chrootdir" ]; then
 	exit 1
 fi
 chrootdir="mkapkchroot/build/$chrootdir"
-chroothostname="pandora-$test-apkchroot"
+chroothostname="$(mkhostname)"
 
 rm -rf $chrootdir 2> /dev/null
 mkdir -p $chrootdir $chrootdir/sbin
+#ln -s /apkcache $PWD/$chrootdir/apkcache
 
 cp -r mkapkchroot/etc/ $chrootdir
 
-apk --initdb --root=$chrootdir add > /dev/null
-apk --root=$chrootdir add busybox $2 > /dev/null
+apk --initdb --no-cache --root=$chrootdir --allow-untrusted add > /dev/null
+apk --root=$chrootdir --allow-untrusted cache sync
+apk --root=$chrootdir --no-cache --allow-untrusted apk update 2> /dev/null > /dev/null
+apk --root=$chrootdir --no-cache --allow-untrusted add busybox $2 > /dev/null
 rm $chrootdir/sbin/init
 cp -R mkapkchroot/sbin/* $chrootdir/sbin/
 
-mkdir -p $chrootdir/dev $chrootdir/proc $chrootdir/sys $chrootdir/tmp
+mkdir -p $chrootdir/dev $chrootdir/proc $chrootdir/sys $chrootdir/tmp $chrootdir/var/log $chrootdir/mnt/bootmedia
 
 echo $chroothostname > $chrootdir/etc/hostname
 echo "127.0.0.1 $chroothostname localhost" > $chrootdir/etc/hosts

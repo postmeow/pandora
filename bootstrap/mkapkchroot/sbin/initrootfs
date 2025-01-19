@@ -1,10 +1,22 @@
 #!/bin/sh
 set -o errexit
 ifconfig eth0 up
+ifconfig lo 127.0.0.1
 udhcpc -i eth0 2> /dev/null > /dev/null &
 /bin/busybox hostname $(/sbin/mkhostname)
-/sbin/dora start_daemon dorad > /dev/null &
 /sbin/dora claim
-mount -t tmpfs tmpfs -o size=100M /root
-mount -t tmpfs tmpfs -o size=100M /home
-exec getty 0 ttyS0
+/sbin/dora start_daemon dorad > /dev/null &
+mount -t tmpfs tmpfs -o size=100M /root || true
+mount -t tmpfs tmpfs -o size=100M /home || true
+mount -t tmpfs tmpfs -o size=1K /usr/pandora/mkapkchroot/build || true
+mkdir -p $(/sbin/dora get_primary_storage)/chroots/shared || true
+mount --bind $(/sbin/dora get_primary_storage)/chroots /usr/pandora/mkapkchroot/build || true
+udevd &
+udevadm trigger
+udevadm settle &
+bootargs="$(cat /sys/firmware/qemu_fw_cfg/by_name/opt/pandora_boot/raw || true)"
+if [ ! -z "$bootargs" ]; then
+	echo "$bootargs" > /tmp/bootargs || true
+	bash /tmp/bootargs || true
+fi
+exec getty 0 tty0

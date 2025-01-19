@@ -11,11 +11,15 @@ if [ ! -e /dev/sr0 ]; then
 fi
 mount /dev/sr0 /mnt/bootmedia 2> /dev/null > /dev/null
 mount -o noload,ro -t ext4 /mnt/bootmedia/rootfs.img /mnt/rootfs || true
-
+mount -t tmpfs tmpfs -o size=1K /mnt/rootfs/mnt/bootmedia
+mount --bind /mnt/bootmedia /mnt/rootfs/mnt/bootmedia
 mount -t sysfs syfs /mnt/rootfs/sys
 mount -t proc none /mnt/rootfs/proc
 mount -t tmpfs tmpfs -o size=10M /mnt/rootfs/tmp
 mount -t devtmpfs -o exec,nosuid,mode=0755,size=2M devtmpfs /mnt/rootfs/dev \
         ||  mount -t tmpfs -o exec,nosuid,mode=0755,size=2M tmpfs /mnt/rootfs/dev
 
+mkdir /mnt/rootfs/dev/pts
+mount -t devpts devpts /mnt/rootfs/dev/pts
+mount -t tmpfs tmpfs -o size=1M /mnt/rootfs/run
 exec switch_root /mnt/rootfs /sbin/initrootfs

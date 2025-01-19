@@ -2,7 +2,7 @@
 set -o errexit
 umount mkrootfs/build 2> /dev/null || true
 rm -r mkrootfs/build/ mkrootfs/rootfs.img 2> /dev/null || true
-chrootdir="$(./mkapkchroot/init rootfs 'zsh qemu-system-x86_64 qemu-img debootstrap apk-tools wget ca-certificates-bundle nano bridge-utils agetty openssh-server openssh-client openssh-keygen chrony bash fortune e2fsprogs')"
+chrootdir="$(./mkapkchroot/init rootfs 'zsh qemu-system-x86_64 qemu-img debootstrap apk-tools wget ca-certificates-bundle nano bridge-utils agetty openssh-server openssh-client openssh-keygen chrony bash fortune e2fsprogs eudev')"
 if [ -z "$chrootdir" ]; then
 	echo empty chrootdir
 	exit 2
@@ -14,7 +14,8 @@ losetup /dev/loop7 mkrootfs/rootfs.img
 mount -t ext4 /dev/loop7 mkrootfs/build
 cp -r $chrootdir/* mkrootfs/build/
 
-mkdir -p mkrootfs/build/usr/pandora/mkapkchroot
+mkdir -p mkrootfs/build/usr/pandora/mkapkchroot/build
+mkdir mkrootfs/build/run
 cp -r ../bootstrap/mkapkchroot/init  mkrootfs/build/usr/pandora/mkapkchroot
 cp -r ../bootstrap/mkapkchroot/etc mkrootfs/build/usr/pandora/mkapkchroot
 cp -r ../bootstrap/mkapkchroot/sbin mkrootfs/build/usr/pandora/mkapkchroot

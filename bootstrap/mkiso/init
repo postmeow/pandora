@@ -11,6 +11,7 @@ cp $syslinux_chroot/usr/share/syslinux/libcom32.c32 mkiso/build/boot/syslinux
 cp $syslinux_chroot/usr/share/syslinux/libutil.c32 mkiso/build/boot/syslinux
 cp $syslinux_chroot/usr/share/syslinux/mboot.c32 mkiso/build/boot/syslinux
 cp -r mkiso/boot/* mkiso/build/boot/
+cp -r mkapkcache/files mkiso/build/apkcache
 #sed -i "s/quiet/quiet $1/g" mkiso/build/boot/syslinux/syslinux.cfg
 cp $initramfs mkiso/build/boot/initram
 

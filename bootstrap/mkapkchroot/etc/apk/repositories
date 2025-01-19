@@ -1,2 +1,4 @@
-http://dl-cdn.alpinelinux.org/alpine/latest-stable/main
-http://dl-cdn.alpinelinux.org/alpine/latest-stable/community
+/apkcache/
+/mnt/bootmedia/apkcache/
+#http://dl-cdn.alpinelinux.org/alpine/latest-stable/main
+#http://dl-cdn.alpinelinux.org/alpine/latest-stable/community

@@ -1,10 +1,27 @@
 #!/bin/zsh
 export DISPLAY=:0
-hash Xvnc 2> /dev/null
+/sbin/dora claim_from_chroot
+#mount --bind $(/sbin/dora get_primary_storage)/chroots /usr/pandora/mkapkchroot/build
+hash X 2> /dev/null
 if [ $? -eq 0 ]; then
-	Xvnc SecurityTypes=None 2> /dev/null > /dev/null  &
-	sleep 3
-	icewm 2> /dev/null > /dev/null &
+	sed -i 's/enable_xauth=1/enable_xauth=0/g' /usr/bin/startx
+	rm /tmp/.X0-lock 2> /dev/null
+	mkdir /run
+	/sbin/udevd&
+	/sbin/udevadm trigger &
+	/sbin/udevadm settle &
+	echo 'exec fluxbox' >> /root/.xinitrc
+	post_qemu="$(cat /sys/firmware/qemu_fw_cfg/by_name/opt/pandora_postchroot/raw 2> /dev/null)"
+        if [ ! -z "$post_qemu" ]; then
+		echo '#!/bin/bash' > /tmp/post_qemu
+                echo 'export DISPLAY=:0' >> /tmp/post_qemu
+                echo $post_qemu >> /tmp/post_qemu
+		chmod +x /tmp/post_qemu
+                /sbin/dora start_daemon /tmp/post_qemu
+        fi
+        echo 'exec fluxbox' > /root/.xinitrc
+
+	startx &
 fi
 
 zsh

@@ -34,21 +34,46 @@ rotate_log() {
 	truncate --size="<$maxlogsize" $dora_dir_logs/$1
 }
 
-bind_chroot_stuff() {
+prep_chroot() {
 	chrootdir=$1
-        mount --bind /proc $chrootdir/proc
-        mount --bind /dev $chrootdir/dev
-        mount --bind /sys $chrootdir/sys
+
+	mkdir -p $chrootdir/usr/pandora
+	touch $chrootdir/.imchroot
+
+	mkdir -p /tmp/chroots #mkfix 
+	mount --bind /tmp/chroots $chrootdir/tmp 2> /dev/null #mkfix: make unique per chroot
+        mount --bind /proc $chrootdir/proc 2> /dev/null
+        mount --bind /dev $chrootdir/dev 2> /dev/null
+        mount --bind /sys $chrootdir/sys 2> /dev/null
+	mount --bind /dev/pts $chrootdir/dev/pts 2> /dev/null
+	mount --bind /usr/pandora $chrootdir/usr/pandora
+	mount --bind /mnt/bootmedia $chrootdir/mnt/bootmedia
+
+	cp -R /usr/pandora/mkapkchroot/etc/zsh/* $chrootdir/etc/zsh/
+	cp -R /usr/pandora/mkapkchroot/sbin/* $chrootdir/sbin/
 }
 
 xchroot() {
-	chroot "$1" "tigervnc icewm xterm font-dejavu font-dejavu-sans-mono-nerd qemu-ui-gtk qemu-system-x86_64"
+        pkgs="fluxbox xinit xorg-server xf86-video-qxl mesa-dri-gallium xf86-input-libinput xterm font-dejavu font-dejavu-sans-mono-nerd eudev $2"
+        if [ -z "/sys/firmware/qemu_fw_cfg/by_name/pandora_postchroot/raw" ]; then
+                pkgs="$pkgs qemu-system-x86_64 qemu-ui-gtk qemu-img"
+        fi
+#       chroot "$1" "fluxbox qemu-img xinit xorg-server xf86-video-qxl qemu-hw-display-qxl mesa-dri-gallium mesa-utils  xf86-input-libinput icewm xterm font-dejavu font-dejavu-sans-mono-nerd qemu-ui-gtk qemu-system-x86_64 eudev $2"
+        chroot $1 "$pkgs"
+}
+
+qemu_app() {
+	app="$1"
+	arch="$(uname -m)"
+	if [ ! -f "disk.qcow2" ]; then
+		qemu-img create -f qcow2 disk.qcow2 4G
+	fi
+	qemu-system-$arch -nodefaults -enable-kvm -name "pandora $app"  -smp cores=2 -cpu host,+kvm_pv_eoi,+kvm_pv_unhalt -m 2048 -device 'pci-bridge,id=pci.1,chassis_nr=1,bus=pci.0,addr=0x1e' -device 'pci-bridge,id=pci.2,chassis_nr=2,bus=pci.0,addr=0x1f' -device 'pci-bridge,id=pci.3,chassis_nr=3,bus=pci.0,addr=0x5' -device 'vmgenid,guid=8c6ec6f5-f83c-4002-808b-342fe1760a1c' -device 'piix3-usb-uhci,id=uhci,bus=pci.0,addr=0x1.0x2' -device 'usb-tablet,id=tablet,bus=uhci.0,port=1' -device 'qxl,id=qxl,bus=pci.0,addr=0x2' -drive 'file=/dev/sr0,if=none,id=drive-ide2,media=cdrom,format=raw,aio=io_uring' -device 'ide-cd,bus=ide.1,unit=0,drive=drive-ide2,id=ide2,bootindex=100' -netdev 'type=user,id=net0'  -device 'virtio-net-pci,netdev=net0,bus=pci.0,addr=0x12,id=net0,rx_queue_size=1024,tx_queue_size=256,bootindex=101' -smbios 'type=1' -device 'virtio-blk-pci,drive=drive-virtio0,id=virtio0,bus=pci.0,addr=0xa' -drive 'file=disk.qcow2,if=none,id=drive-virtio0,cache=unsafe,format=qcow2,aio=io_uring,detect-zeroes=on' -fw_cfg "name=opt/pandora_boot,string=dora xchroot qemu-app $app" -fw_cfg "name=opt/pandora_postchroot,string=$app"
 }
 
 chroot() {
 	chrootname="$1"
-	stdout "chrooting into $chrootname ..."
-	pkgs="zsh apk-tools $2"
+	pkgs="zsh bash apk-tools $2"
 
 	currentcwd=$PWD
 
@@ -58,48 +83,35 @@ chroot() {
 		exit
 	fi
 	if [ -d $storage/chroots/$chrootname ]; then
-		bind_chroot_stuff $storage/chroots/$chrootname/
+		stdout chrooting into $chrootname
+		prep_chroot $storage/chroots/$chrootname/
 		/usr/sbin/chroot $storage/chroots/$chrootname sbin/initchroot
 		exit 0
 	fi
 
 	stdout "building new $chrootname"
 
-	bootstrap="$storage/bootstrap"
-	mkdir -p $bootstrap
-	cp -rv /usr/pandora/* "$bootstrap"
-
-	cd $bootstrap
-
+	cd /usr/pandora/
 	chrootdir=$(./mkapkchroot/init $chrootname "$pkgs")
 	if [ -z "$chrootdir" ]; then
 		stderr failed to mkapkchroot $chrootdir
 	else
-		bind_chroot_stuff $chrootdir
-
-#		cp -R /etc/* $chrootdir/etc/
-		echo $(mkhostname) > $chrootdir/etc/hostname 
-
-		mkdir -p $storage/chroots/
-
-		echo $chrootdir $storage/chroots/$chrootname
-		ln -s $chrootdir $storage/chroots/$chrootname
-
-		cd $currentpwd
 		stdout "finished building $name"
-
 		chroot $chrootname
 	fi
+	cd $currentpwd
 }
 
+claim_from_chroot() {
+	write_keyvalue_db primary_storage "$dora_dir/tmp" > /dev/null
+}
 
 claim() {
 	claim_block vda
 	mount_block vda 1
 
 	storage="$(get_primary_storage)"
-
-	if [ $storage == "$dora_dir/tmp" ]; then
+	if [ -z "$storage" ]; then
 		mem_total_kb=$(mem_info)
 		mem_25p=$(echo $mem_total_kb / 100 \* 25 | bc)
 		mount -t tmpfs tmpfs -o size="$mem_25p"K $dora_dir/tmp
@@ -110,9 +122,6 @@ claim() {
 
 get_primary_storage() {
 	storage_dir="$(get_keyvalue_db primary_storage)"
-	if [ -z "$storage_dir" ]; then
-		storage_dir="$dora_dir/tmp"
-	fi
 	echo $storage_dir
 }
 
@@ -420,6 +429,7 @@ show_help() {
 
 daemon() {
 	cron_loop &
+	start_daemon /usr/sbin/sshd &
 }
 
 args_to_func() {
